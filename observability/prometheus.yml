@@ -1,0 +1,38 @@
+# Prometheus scrape configuration.
+#
+# Targets below are added incrementally as each phase introduces the
+# corresponding service; entries for services not yet running are harmless
+# (Prometheus just reports the target as "down" -- it does not crash).
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ["alertmanager:9093"]
+
+rule_files:
+  - /etc/prometheus/alerts.yml
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  # --- Phase 2: ingestion producers -----------------------------------
+  - job_name: vitals-producer
+    static_configs:
+      - targets: ["vitals-producer:8001"]
+
+  # --- Phase 3/4: Spark jobs (PrometheusServlet) ------------------------
+  - job_name: spark-stream
+    metrics_path: /metrics/executors/prometheus
+    static_configs:
+      - targets: ["spark-stream:4040"]
+
+  # --- Phase 5: serving API --------------------------------------------
+  - job_name: api
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["api:8000"]

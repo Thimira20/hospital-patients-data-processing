@@ -1,0 +1,13 @@
+patient_id,name,age,sex,ward,bed,admitted_at,baseline_hr,baseline_spo2,baseline_sbp,baseline_dbp,baseline_temp
+P001,Alice Meyer,67,F,Cardiology,C-01,2026-01-01T00:00:00,78,97,122,78,36.7
+P002,Brian Osei,54,M,Cardiology,C-02,2026-01-01T00:00:00,72,98,118,76,36.6
+P003,Chen Wei,81,M,General,G-01,2026-01-01T00:00:00,88,95,108,70,36.9
+P004,Diana Kowalski,45,F,General,G-02,2026-01-01T00:00:00,70,98,116,74,36.5
+P005,Ethan Brooks,72,M,ICU,I-01,2026-01-01T00:00:00,92,94,102,66,37.0
+P006,Fatima Noor,39,F,General,G-03,2026-01-01T00:00:00,68,99,110,72,36.6
+P007,George Papadopoulos,60,M,Cardiology,C-03,2026-01-01T00:00:00,80,96,128,80,36.8
+P008,Hana Suzuki,29,F,General,G-04,2026-01-01T00:00:00,65,99,112,70,36.5
+P009,Ivan Petrov,74,M,ICU,I-02,2026-01-01T00:00:00,95,93,98,62,37.1
+P010,Julia Santos,52,F,Cardiology,C-04,2026-01-01T00:00:00,76,97,120,78,36.7
+P011,Kwame Asante,83,M,General,G-05,2026-01-01T00:00:00,85,95,106,68,36.9
+P012,Linda Fischer,48,F,ICU,I-03,2026-01-01T00:00:00,90,94,100,64,37.0

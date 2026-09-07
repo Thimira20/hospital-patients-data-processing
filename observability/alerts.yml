@@ -1,0 +1,57 @@
+# Alert rules for the hospital vitals pipeline.
+#
+# "Watchdog" is a standard Prometheus pattern: an alert that is ALWAYS
+# firing, used to prove the Prometheus -> Alertmanager -> receiver pipeline
+# itself is alive (if Watchdog stops firing, alerting is broken, not the
+# system it monitors). We add the real pipeline-health rules incrementally
+# as each phase introduces the metrics/tables they depend on (see Phase 5,
+# section 5.2 of PLAN.md, for the full table).
+groups:
+  - name: meta
+    rules:
+      - alert: Watchdog
+        expr: vector(1)
+        labels:
+          severity: none
+        annotations:
+          summary: "Alerting pipeline is alive (always-firing watchdog)."
+
+  # --- Phase 2: ingestion --------------------------------------------
+  - name: ingestion
+    rules:
+      - alert: NoVitalsIngested
+        expr: rate(vitals_events_emitted_total[5m]) == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "No vitals events emitted in the last 5 minutes."
+
+  # --- Phase 3: stream processing --------------------------------------
+  - name: stream_processing
+    rules:
+      - alert: StreamStalled
+        expr: time() - ops_pipeline_heartbeat_last_seen_seconds{service="spark-stream"} > 120
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Speed layer has not produced output in over 2 minutes."
+
+  # --- Phase 4/5: batch + serving ---------------------------------------
+  - name: batch_and_serving
+    rules:
+      - alert: BatchLate
+        expr: time() - ops_batch_last_success_seconds > 720
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "No successful batch run in the last 12 minutes."
+      - alert: ApiErrorRateHigh
+        expr: rate(http_requests_total{job="api",status=~"5.."}[5m]) / rate(http_requests_total{job="api"}[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "API 5xx error rate above 5% over 5 minutes."

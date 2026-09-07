@@ -1,0 +1,14 @@
+# Host-side dependencies ONLY -- used for running pure-Python unit tests
+# (tests/test_clinical.py, tests/test_schemas.py) without Docker, and for
+# linting. The actual pipeline runs entirely inside containers (see
+# docker/*.Dockerfile); this file exists purely for local dev convenience.
+pytest==8.3.4
+pydantic==2.12.5
+pydantic-settings==2.7.0
+structlog==24.4.0
+PyYAML==6.0.2
+ruff==0.8.4
+black==24.10.0
+confluent-kafka==2.6.1
+pandas==2.2.3
+pyarrow==18.1.0

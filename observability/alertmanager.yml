@@ -1,0 +1,21 @@
+# Minimal Alertmanager config. The webhook receiver points at the FastAPI
+# serving app's /internal/alertmanager endpoint, added in Phase 5 -- until
+# then, delivery to it will simply fail/retry, which is expected and
+# harmless (Alertmanager itself still runs and is queryable).
+route:
+  receiver: default
+  group_by: ["alertname"]
+  group_wait: 10s
+  group_interval: 1m
+  repeat_interval: 15m
+  routes:
+    - matchers:
+        - severity = "none"
+      receiver: "null"
+
+receivers:
+  - name: default
+    webhook_configs:
+      - url: "http://api:8000/internal/alertmanager"
+        send_resolved: true
+  - name: "null"

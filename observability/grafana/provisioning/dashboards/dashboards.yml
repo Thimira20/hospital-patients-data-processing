@@ -1,0 +1,15 @@
+# Tells Grafana to auto-load any dashboard JSON dropped into
+# observability/grafana/dashboards/ (populated in Phase 5: the Ward Clinical
+# Dashboard and the Pipeline Health Dashboard). Empty directory is fine for
+# now -- Grafana just shows no dashboards under "General" until Phase 5.
+apiVersion: 1
+
+providers:
+  - name: default
+    orgId: 1
+    folder: ""
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    options:
+      path: /etc/grafana/provisioning/dashboards/json

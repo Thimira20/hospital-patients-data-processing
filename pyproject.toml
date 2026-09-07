@@ -1,0 +1,18 @@
+[tool.ruff]
+line-length = 110
+target-version = "py311"
+extend-exclude = ["data"]
+
+[tool.ruff.lint]
+# E: pycodestyle errors (includes E402, needed because ingestion/processing
+#    modules deliberately do sys.path.insert() before importing sibling
+#    packages, since they're launched as standalone scripts, not installed
+#    packages -- suppressed explicitly per-line with `# noqa: E402`).
+# F: pyflakes (unused imports/names, undefined names).
+# I: isort (import ordering).
+select = ["E", "F", "I"]
+ignore = ["E501"]  # line length handled by `line-length` + black instead
+
+[tool.black]
+line-length = 110
+target-version = ["py311"]

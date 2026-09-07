@@ -1,0 +1,91 @@
+# =============================================================================
+# Clinical thresholds and NEWS2-style early-warning scoring bands.
+# Referenced by common/clinical.py (shared between speed and batch layers).
+#
+# NEWS2 (National Early Warning Score 2, Royal College of Physicians UK) is a
+# real, widely-used clinical scoring system for detecting patient
+# deterioration. We adapt a simplified subset of it here (no respiration rate
+# sensor in our simulated data) so the transformation logic is clinically
+# grounded rather than an arbitrary if/else ladder.
+# =============================================================================
+
+news2:
+  heart_rate:
+    # [min, max, points] bands, evaluated in order, first match wins
+    bands:
+      - {min: 0,   max: 40,  points: 3}
+      - {min: 41,  max: 50,  points: 1}
+      - {min: 51,  max: 90,  points: 0}
+      - {min: 91,  max: 110, points: 1}
+      - {min: 111, max: 130, points: 2}
+      - {min: 131, max: 999, points: 3}
+  spo2:
+    bands:
+      - {min: 0,  max: 91,  points: 3}
+      - {min: 92, max: 93,  points: 2}
+      - {min: 94, max: 95,  points: 1}
+      - {min: 96, max: 100, points: 0}
+  systolic_bp:
+    bands:
+      - {min: 0,   max: 90,  points: 3}
+      - {min: 91,  max: 100, points: 2}
+      - {min: 101, max: 110, points: 1}
+      - {min: 111, max: 219, points: 0}
+      - {min: 220, max: 999, points: 3}
+  temperature:
+    bands:
+      - {min: 0.0,  max: 35.0, points: 3}
+      - {min: 35.1, max: 36.0, points: 1}
+      - {min: 36.1, max: 38.0, points: 0}
+      - {min: 38.1, max: 39.0, points: 1}
+      - {min: 39.1, max: 99.0, points: 2}
+
+risk_bands:
+  # total NEWS2-style score -> risk band
+  - {min: 0, max: 2,  band: low}
+  - {min: 3, max: 5,  band: medium}
+  - {min: 6, max: 999, band: high}
+
+valid_ranges:
+  # physiologically-plausible sensor ranges used by validate_reading();
+  # readings outside these are rejected as sensor faults, not just
+  # scored as abnormal.
+  heart_rate:   {min: 20,  max: 250}
+  spo2:         {min: 50,  max: 100}
+  systolic_bp:  {min: 40,  max: 260}
+  diastolic_bp: {min: 20,  max: 180}
+  temperature:  {min: 30.0, max: 43.0}
+
+lab_reference_defaults:
+  # fallback reference ranges if a lab file omits reference_low/high
+  # (used by lab_flag() when the batch job's lab file lacks a range)
+  WBC:        {low: 4.0,  high: 11.0,  unit: "10^9/L"}
+  CRP:        {low: 0.0,  high: 10.0,  unit: "mg/L"}
+  Lactate:    {low: 0.5,  high: 2.0,   unit: "mmol/L"}
+  Creatinine: {low: 60,   high: 110,   unit: "umol/L"}
+  Hemoglobin: {low: 120,  high: 170,   unit: "g/L"}
+  Platelets:  {low: 150,  high: 400,   unit: "10^9/L"}
+  Troponin:   {low: 0.0,  high: 0.04,  unit: "ng/mL"}
+
+lab_risk_weight:
+  # points added to the adjusted batch risk score per abnormal lab flag,
+  # weighted by clinical significance (sepsis-marker labs weighted higher)
+  WBC: 1
+  CRP: 2
+  Lactate: 3
+  Creatinine: 1
+  Hemoglobin: 1
+  Platelets: 1
+  Troponin: 3
+
+anomaly_scenarios:
+  # sustained-episode definitions injected by the vitals producer
+  # (duration in seconds, deltas applied on top of the patient's baseline)
+  tachycardia:     {duration_min: 30, duration_max: 90, hr_delta: 45}
+  desaturation:    {duration_min: 30, duration_max: 90, spo2_delta: -10}
+  hypotension:     {duration_min: 30, duration_max: 90, sbp_delta: -35, dbp_delta: -20}
+  fever:           {duration_min: 30, duration_max: 90, temp_delta: 2.2}
+  sepsis_pattern:  {duration_min: 45, duration_max: 90, hr_delta: 35, sbp_delta: -25, dbp_delta: -15, temp_delta: 1.8}
+
+alerting:
+  sustained_alert_windows: 2   # consecutive breached windows required before alerting

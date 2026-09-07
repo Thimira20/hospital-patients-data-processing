@@ -1,0 +1,26 @@
+# Auto-provisioned Grafana datasources -- no manual "Add data source"
+# clicking required, which matters for the cold-start reproducibility check
+# (Phase 5 verification #3: docker compose down -v && up must reproduce
+# working dashboards with zero manual steps).
+apiVersion: 1
+
+datasources:
+  - name: Postgres-Vitals
+    type: postgres
+    access: proxy
+    url: postgres:5432
+    database: vitals
+    user: postgres
+    isDefault: true
+    jsonData:
+      sslmode: disable
+      postgresVersion: 1600
+      timescaledb: false
+    secureJsonData:
+      password: postgres
+
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: false

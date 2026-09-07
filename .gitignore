@@ -1,0 +1,28 @@
+# data (bind-mounted, gitignored per plan)
+data/
+!data/.gitkeep
+
+# env
+.env
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+
+# ide
+.vscode/
+.idea/
+
+# os
+.DS_Store
+Thumbs.db
+
+# spark/ivy caches if ever built locally
+.ivy2/
+metastore_db/
+derby.log
+
+# reports/logs generated at runtime
+*.jsonl
