@@ -18,6 +18,7 @@ RUN pip install --no-cache-dir -r /app/requirements-app.txt
 COPY common/ /app/common/
 COPY config/ /app/config/
 COPY ingestion/ /app/ingestion/
+COPY serving/ /app/serving/
 
 ENV PYTHONPATH=/app \
     PYTHONUNBUFFERED=1
