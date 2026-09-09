@@ -7,6 +7,7 @@ specifically so the rest of this module, including everything tested here,
 works on a plain host install). Run with:
     pytest tests/test_batch_transforms.py -v
 """
+
 from __future__ import annotations
 
 import os
@@ -24,12 +25,16 @@ from processing.batch_job import (  # noqa: E402
 
 
 def test_vitals_reason_codes_picks_up_high_point_components():
-    codes = vitals_reason_codes_from_components({"heart_rate": 3, "spo2": 0, "systolic_bp": 1, "temperature": 2})
+    codes = vitals_reason_codes_from_components(
+        {"heart_rate": 3, "spo2": 0, "systolic_bp": 1, "temperature": 2}
+    )
     assert codes == ["abnormal_heart_rate", "abnormal_temperature"]
 
 
 def test_vitals_reason_codes_empty_when_all_low_points():
-    codes = vitals_reason_codes_from_components({"heart_rate": 1, "spo2": 0, "systolic_bp": 0, "temperature": 1})
+    codes = vitals_reason_codes_from_components(
+        {"heart_rate": 1, "spo2": 0, "systolic_bp": 0, "temperature": 1}
+    )
     assert codes == []
 
 
