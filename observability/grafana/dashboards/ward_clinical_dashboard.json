@@ -1,0 +1,156 @@
+{
+  "uid": "ward-clinical",
+  "title": "Ward Clinical Dashboard",
+  "description": "Answers the business question: which patients are concerning right now, and how do yesterday's labs change the picture?",
+  "tags": ["ec8203", "clinical"],
+  "timezone": "utc",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": true,
+  "refresh": "15s",
+  "time": { "from": "now-1h", "to": "now" },
+  "annotations": { "list": [] },
+  "templating": { "list": [] },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Patients monitored",
+      "gridPos": { "x": 0, "y": 0, "w": 4, "h": 4 },
+      "datasource": { "type": "postgres", "uid": "postgres-vitals" },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT count(*) AS \"Patients\" FROM reference.patients"
+        }
+      ],
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" } }, "overrides": [] }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Active alerts (unacknowledged)",
+      "gridPos": { "x": 4, "y": 0, "w": 4, "h": 4 },
+      "datasource": { "type": "postgres", "uid": "postgres-vitals" },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT count(*) AS \"Active alerts\" FROM speed.clinical_alerts WHERE NOT acknowledged"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 1 },
+              { "color": "red", "value": 3 }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "High-risk patients right now",
+      "gridPos": { "x": 8, "y": 0, "w": 4, "h": 4 },
+      "datasource": { "type": "postgres", "uid": "postgres-vitals" },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT count(*) AS \"High risk\" FROM serving.patient_360 WHERE current_risk_band = 'high'"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1 }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 4,
+      "type": "piechart",
+      "title": "Current risk band distribution",
+      "gridPos": { "x": 12, "y": 0, "w": 6, "h": 8 },
+      "datasource": { "type": "postgres", "uid": "postgres-vitals" },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT current_risk_band AS \"band\", count(*) AS \"count\" FROM serving.patient_360 WHERE current_risk_band IS NOT NULL GROUP BY current_risk_band"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "table",
+      "title": "Per-patient status (now + yesterday's lab-adjusted risk)",
+      "gridPos": { "x": 18, "y": 0, "w": 6, "h": 8 },
+      "datasource": { "type": "postgres", "uid": "postgres-vitals" },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT patient_id, name, ward, bed, current_score, current_risk_band, current_trend, batch_adjusted_score, batch_risk_band, batch_delta_direction FROM serving.patient_360 ORDER BY current_score DESC NULLS LAST"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Heart rate -- last hour, all patients",
+      "gridPos": { "x": 0, "y": 4, "w": 12, "h": 8 },
+      "datasource": { "type": "postgres", "uid": "postgres-vitals" },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawSql": "SELECT event_ts AS \"time\", patient_id, heart_rate FROM speed.vitals_clean WHERE event_ts >= now() - interval '1 hour' ORDER BY event_ts"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "table",
+      "title": "Recent clinical alerts",
+      "gridPos": { "x": 0, "y": 12, "w": 12, "h": 8 },
+      "datasource": { "type": "postgres", "uid": "postgres-vitals" },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT raised_at, patient_id, score, risk_band, acknowledged FROM speed.clinical_alerts ORDER BY raised_at DESC LIMIT 50"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "type": "table",
+      "title": "Yesterday's lab-adjusted daily risk (batch layer)",
+      "gridPos": { "x": 12, "y": 8, "w": 12, "h": 12 },
+      "datasource": { "type": "postgres", "uid": "postgres-vitals" },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT sim_day, patient_id, vitals_score, vitals_band, abnormal_test_count, adjusted_risk_score, risk_band, reason_codes, score_delta, delta_direction FROM batch.patient_risk_daily ORDER BY sim_day DESC, adjusted_risk_score DESC LIMIT 50"
+        }
+      ]
+    }
+  ]
+}

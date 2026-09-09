@@ -1,0 +1,152 @@
+{
+  "uid": "pipeline-health",
+  "title": "Pipeline Health Dashboard",
+  "description": "Observability across every stage: ingestion rate, component heartbeats, batch freshness, data quality, API errors, firing alerts.",
+  "tags": ["ec8203", "observability"],
+  "timezone": "utc",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": true,
+  "refresh": "15s",
+  "time": { "from": "now-1h", "to": "now" },
+  "annotations": { "list": [] },
+  "templating": { "list": [] },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Vitals events emitted (events/s)",
+      "gridPos": { "x": 0, "y": 0, "w": 8, "h": 7 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "refId": "A", "expr": "rate(vitals_events_emitted_total[1m])", "legendFormat": "emitted/s" },
+        { "refId": "B", "expr": "rate(vitals_emit_errors_total[1m])", "legendFormat": "errors/s" }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Component heartbeat age (seconds since last report)",
+      "gridPos": { "x": 8, "y": 0, "w": 8, "h": 7 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "ops_pipeline_heartbeat_last_seen_seconds",
+          "legendFormat": "{{ service }}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 60 },
+              { "color": "red", "value": 120 }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Batch layer: seconds since last success",
+      "gridPos": { "x": 16, "y": 0, "w": 8, "h": 7 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "refId": "A", "expr": "ops_batch_last_success_seconds" }],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 420 },
+              { "color": "red", "value": 720 }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Critical data-quality failures (latest sim_day)",
+      "gridPos": { "x": 0, "y": 7, "w": 6, "h": 6 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "refId": "A", "expr": "ops_data_quality_critical_failures" }],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1 }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Speed layer: seconds since latest window",
+      "gridPos": { "x": 6, "y": 7, "w": 6, "h": 6 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "refId": "A", "expr": "speed_latest_window_age_seconds" }],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 90 },
+              { "color": "red", "value": 180 }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "API request rate by status",
+      "gridPos": { "x": 12, "y": 7, "w": 12, "h": 6 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (status) (rate(http_requests_total{job=\"api\"}[1m]))",
+          "legendFormat": "{{ status }}"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "API request latency (p95, by route)",
+      "gridPos": { "x": 0, "y": 13, "w": 12, "h": 7 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum by (le, handler) (rate(http_request_duration_seconds_bucket{job=\"api\"}[5m])))",
+          "legendFormat": "{{ handler }}"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "type": "table",
+      "title": "Currently firing alerts",
+      "gridPos": { "x": 12, "y": 13, "w": 12, "h": 7 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "refId": "A", "expr": "ALERTS{alertstate=\"firing\"}", "format": "table", "instant": true }]
+    }
+  ]
+}

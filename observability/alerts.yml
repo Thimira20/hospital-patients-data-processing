@@ -1,11 +1,17 @@
 # Alert rules for the hospital vitals pipeline.
 #
+# Every rule below references a metric that is ACTUALLY exported by this
+# codebase (see the "source" comment on each) -- deliberately not stubbing
+# rules against metrics nothing produces (e.g. Kafka consumer-group lag would
+# need a kafka-lag-exporter sidecar, and per-micro-batch duration histograms
+# would need custom Spark instrumentation; neither is implemented here, and
+# both are named explicitly in the report's Limitations section rather than
+# faked with a rule that would sit permanently "pending").
+#
 # "Watchdog" is a standard Prometheus pattern: an alert that is ALWAYS
 # firing, used to prove the Prometheus -> Alertmanager -> receiver pipeline
 # itself is alive (if Watchdog stops firing, alerting is broken, not the
-# system it monitors). We add the real pipeline-health rules incrementally
-# as each phase introduces the metrics/tables they depend on (see Phase 5,
-# section 5.2 of PLAN.md, for the full table).
+# system it monitors).
 groups:
   - name: meta
     rules:
@@ -16,7 +22,8 @@ groups:
         annotations:
           summary: "Alerting pipeline is alive (always-firing watchdog)."
 
-  # --- Phase 2: ingestion --------------------------------------------
+  # --- Ingestion ---------------------------------------------------------
+  # source: ingestion/vitals_producer.py (:8001), ingestion/lab_batch_producer.py (:8002)
   - name: ingestion
     rules:
       - alert: NoVitalsIngested
@@ -26,30 +33,75 @@ groups:
           severity: critical
         annotations:
           summary: "No vitals events emitted in the last 5 minutes."
+          description: "vitals-producer may be down, or Kafka is unreachable from it."
 
-  # --- Phase 3: stream processing --------------------------------------
-  - name: stream_processing
+      - alert: LabFileMissing
+        # 450s = 1.5x the default SIM_DAY_SECONDS=300 in .env. Prometheus
+        # rule files are static YAML (no env-var substitution), so if you
+        # change SIM_DAY_SECONDS, update this threshold to match.
+        #
+        # Guarded with "> 0": the gauge defaults to 0 until the FIRST lab
+        # file is ever written, and time() - 0 is always a huge number --
+        # without this guard the alert would fire immediately and
+        # permanently from container startup until the first lab file lands.
+        expr: (time() - lab_file_last_written_timestamp_seconds > 450) and (lab_file_last_written_timestamp_seconds > 0)
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "No daily lab file written in 1.5x the expected sim-day interval."
+
+  # --- Speed layer / storage ----------------------------------------------
+  # source: serving/api.py's background gauge poller, reading
+  # ops.pipeline_heartbeat and speed.patient_vitals_1m (populated by
+  # processing/stream_job.py and processing/raw_archiver.py)
+  - name: speed_layer
     rules:
-      - alert: StreamStalled
-        expr: time() - ops_pipeline_heartbeat_last_seen_seconds{service="spark-stream"} > 120
+      - alert: PipelineComponentStalled
+        expr: ops_pipeline_heartbeat_last_seen_seconds > 120
         for: 1m
         labels:
           severity: critical
         annotations:
-          summary: "Speed layer has not produced output in over 2 minutes."
+          summary: "{{ $labels.service }} has not reported a heartbeat in over 2 minutes."
 
-  # --- Phase 4/5: batch + serving ---------------------------------------
-  - name: batch_and_serving
+      - alert: ServingDataStale
+        expr: speed_latest_window_age_seconds > 180
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "The most recent speed-layer window is over 3 minutes old."
+
+  # --- Batch layer / data quality -----------------------------------------
+  # source: serving/api.py's poller, reading ops.batch_runs and ops.data_quality
+  # (populated by processing/batch_job.py and orchestration/dags/*)
+  - name: batch_layer
     rules:
       - alert: BatchLate
-        expr: time() - ops_batch_last_success_seconds > 720
+        expr: ops_batch_last_success_seconds > 720
         for: 1m
         labels:
           severity: warning
         annotations:
           summary: "No successful batch run in the last 12 minutes."
+
+      - alert: DataQualityFailed
+        expr: ops_data_quality_critical_failures > 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "A critical data-quality rule failed for the most recent sim_day checked."
+
+  # --- Serving API ---------------------------------------------------------
+  # source: prometheus-fastapi-instrumentator, auto-instrumented in serving/api.py
+  - name: serving_api
+    rules:
       - alert: ApiErrorRateHigh
-        expr: rate(http_requests_total{job="api",status=~"5.."}[5m]) / rate(http_requests_total{job="api"}[5m]) > 0.05
+        expr: |
+          rate(http_requests_total{job="api",status=~"5.."}[5m])
+          / rate(http_requests_total{job="api"}[5m]) > 0.05
         for: 5m
         labels:
           severity: warning
