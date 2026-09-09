@@ -226,6 +226,8 @@ services:
       LOGS_DIR: /data/logs
       PATIENTS_CSV: /app/config/patients.csv
       LANDING_LABS_DIR: /data/landing/labs
+    ports:
+      - "8002:8002"   # Prometheus metrics
     volumes:
       - ./common:/app/common:ro
       - ./config:/app/config:ro
@@ -374,5 +376,34 @@ services:
     env_file: .env
     environment: *airflow-common-env
     volumes: *airflow-common-volumes
+    networks:
+      - bigdata_net
+
+  # ===========================================================================
+  # PHASE 5 — Serving API
+  # ===========================================================================
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/app.Dockerfile
+    container_name: api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ["-m", "uvicorn", "serving.api:app", "--host", "0.0.0.0", "--port", "8000"]
+    env_file: .env
+    environment:
+      DATA_ROOT: /data
+      LOGS_DIR: /data/logs
+      REPORTS_DIR: /data/reports
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./common:/app/common:ro
+      - ./config:/app/config:ro
+      - ./serving:/app/serving:ro
+      - ./data:/data
     networks:
       - bigdata_net
