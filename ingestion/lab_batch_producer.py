@@ -32,11 +32,22 @@ import signal
 import sys
 import time
 
+from prometheus_client import Counter, Gauge, start_http_server
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from common.logging_setup import configure_logging  # noqa: E402
 from config.settings import get_settings  # noqa: E402
 from ingestion.sim_clock import SimClock  # noqa: E402
+
+# ---- Prometheus metrics ----------------------------------------------------
+# Exposed on :8002 -- referenced by observability/prometheus.yml's
+# "lab-producer" scrape job and by the LabFileMissing alert rule.
+LAB_FILES_WRITTEN = Counter("lab_file_written_total", "Daily lab CSV files successfully written")
+LAB_FILE_ROWS = Gauge("lab_file_rows", "Row count of the most recently written lab file")
+LAB_FILE_LAST_WRITTEN_TS = Gauge(
+    "lab_file_last_written_timestamp_seconds", "Unix timestamp of the most recent lab file write"
+)
 
 # Normal / abnormal (sepsis-elevated) ranges per test. Kept hardcoded here
 # (mirroring config/thresholds.yml's lab_reference_defaults) so this module
@@ -266,6 +277,10 @@ def generate_lab_file(
     with open(done_path, "w", encoding="utf-8") as fh:
         fh.write(json.dumps({"row_count": row_count, "checksum_md5": checksum}))
 
+    LAB_FILES_WRITTEN.inc()
+    LAB_FILE_ROWS.set(row_count)
+    LAB_FILE_LAST_WRITTEN_TS.set(time.time())
+
     logger.info(
         "lab_file_written",
         stage="ingestion",
@@ -291,6 +306,7 @@ def run() -> None:
     signal.signal(signal.SIGTERM, _handle_signal)
     signal.signal(signal.SIGINT, _handle_signal)
 
+    start_http_server(8002)
     logger.info("lab_producer_started", stage="ingestion", landing_dir=landing_dir)
 
     last_generated_index = -1

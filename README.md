@@ -129,9 +129,10 @@ docker compose ps             # everything should reach healthy/running within ~
 | 9093  | Alertmanager |
 | 3000  | Grafana (`admin` / `admin` by default — see `.env`) |
 | 8001  | Vitals producer Prometheus metrics |
+| 8002  | Lab producer Prometheus metrics |
 | 4040  | Spark UI / metrics (spark-stream) |
-| 8081  | Airflow webserver (added in Phase 4) |
-| 8000  | Serving API (added in Phase 5) |
+| 8081  | Airflow webserver (`admin` / `admin`) |
+| 8000  | Serving API (`/docs` for interactive OpenAPI docs) |
 
 ### Tearing down
 
@@ -175,8 +176,43 @@ moving on. See [`PLAN.md`](PLAN.md) for the full checklist of each phase. Quick 
   (no Docker needed) and the host scripts `scripts/verify_speed_vs_raw.py`,
   `scripts/verify_alerts.py`, `scripts/measure_latency.py` (see `PLAN.md` section 3.2
   for the full checklist, including the restart-idempotency check).
-- **Phase 4 -- Batch layer + Airflow**: `airflow-webserver`, `airflow-scheduler`.
-- **Phase 5 -- Serving, observability, docs**: `api`, Grafana dashboards, alert rules.
+- **Phase 4 -- Batch layer + Airflow** (done): `processing/batch_job.py` recomputes a
+  simulated day from scratch, straight from the Parquet master dataset -- worst-of-day
+  NEWS2 scoring (`common.clinical.news2_score`, computed via Spark's `max_by()`), the
+  day's lab file cleaned with five row-level data-quality rules (bad rows quarantined,
+  not the whole file rejected), and **the join**: `common.clinical.adjust_risk_with_labs`
+  combines the two into an adjusted risk score + reason codes + day-over-day delta,
+  written with a delete-then-insert per sim_day inside one transaction (idempotent
+  re-runs/backfills). `orchestration/dags/daily_patient_risk_dag.py` orchestrates it
+  (wait for the lab file -> validate -> confirm master data -> run the batch job -> DQ
+  gate -> build the HTML/CSV report -> refresh `serving.patient_360`), and
+  `pipeline_health_dag.py` runs a separate heartbeat/freshness health check every 2
+  minutes. No Airflow Connections are configured -- every DB access goes through
+  `common.db`/`config.settings`, so there's zero manual Airflow UI setup.
+  Verify: `docker compose up -d airflow-webserver airflow-scheduler` (UI on :8081,
+  `admin`/`admin`), then `airflow dags trigger daily_patient_risk`; pure-Python
+  join/scoring logic is covered by `pytest tests/test_batch_transforms.py` (no Docker
+  needed). See `PLAN.md` section 4.2 for the full checklist, including the
+  idempotency/backfill recompute demo.
+- **Phase 5 -- Serving, observability, docs** (done): `serving/api.py` (FastAPI) --
+  `/health`/`/ready`, `/ward/status`, `/patients`, `/patients/{id}/risk` (the merged
+  realtime + lab-adjusted answer), `/patients/{id}/vitals`, `/alerts/active` +
+  `/alerts/{id}/ack`, `/reports/daily/{sim_day}`, `/internal/alertmanager` webhook
+  receiver, and `/metrics` (per-route HTTP metrics via
+  prometheus-fastapi-instrumentator, sharing a registry with custom pipeline-health
+  gauges a background poller republishes from Postgres every 15s). Every request
+  carries an `X-Trace-Id`, logged as structured JSON -- grep one across
+  `data/logs/*.jsonl` to see a reading's whole journey. `observability/alerts.yml` has
+  7 rules, every one backed by a metric this codebase actually exports (no rules
+  stubbed against unimplemented instrumentation -- see that file's header comment for
+  what's deliberately out of scope and why). Two Grafana dashboards
+  (`observability/grafana/dashboards/`) are auto-provisioned: Ward Clinical Dashboard
+  (Postgres) and Pipeline Health Dashboard (Prometheus).
+  Verify: `docker compose up -d api`, then `curl localhost:8000/health` and open
+  `localhost:8000/docs`; Grafana dashboards at `localhost:3000` should appear with zero
+  manual setup on a fresh `docker compose down -v && up`. See `PLAN.md` section 5.4 for
+  the full checklist (deliberately triggering each alert rule, tracing a record
+  end-to-end, the cold-start reproducibility timing).
 
 ## 7. Repository layout
 
@@ -225,6 +261,10 @@ data/          gitignored; bind-mounted runtime data (landing files, Parquet, lo
 
 ## 10. Report & demo video
 
-- Report: `docs/report/` (PDF export target: 8-15 pages, per the rubric).
-- Architecture diagrams: `docs/architecture.png` (source: `docs/architecture.drawio`).
+- Report outline: [`docs/report/OUTLINE.md`](docs/report/OUTLINE.md) -- structure only,
+  mapped to the marking rubric; fill in the analysis and screenshots yourself (the
+  assignment's viva requirement means you need to be able to defend it).
+- Architecture diagrams: [`docs/architecture.md`](docs/architecture.md) (two Mermaid
+  diagrams -- render via GitHub/VS Code preview or [mermaid.live](https://mermaid.live)
+  and paste the images into the report; don't screenshot the raw Markdown).
 - Demo video storyboard: see [`PLAN.md` section 5.3](PLAN.md).
